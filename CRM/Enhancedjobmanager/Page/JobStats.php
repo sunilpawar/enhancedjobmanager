@@ -34,33 +34,44 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
    */
   public function getJobStatistics($filters = []) {
     $whereClause = $this->buildWhereClause($filters);
-
     // Get total executions
     $totalExecutions = CRM_Core_DAO::singleValueQuery(
-      "SELECT COUNT(*) FROM civicrm_job_log WHERE 1=1 $whereClause"
+      "SELECT COUNT(*) FROM civicrm_job_log WHERE 1=1 and description like 'Starting execution%' $whereClause"
     );
 
     // Get success/error counts
     $successCount = CRM_Core_DAO::singleValueQuery(
       "SELECT COUNT(*) FROM civicrm_job_log
        WHERE (data NOT LIKE '%error%' AND data NOT LIKE '%failed%')
-       AND 1=1 $whereClause"
+       AND 1=1 and description like 'Finished execution%' $whereClause"
     );
 
     // Get error count
     $errorCount = $totalExecutions - $successCount;
 
     // Get average duration (if run_time field exists and contains duration info)
-    $avgDuration = CRM_Core_DAO::singleValueQuery(
-      "SELECT AVG(
-         CASE
-           WHEN data LIKE '%duration:%' THEN
-             CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(data, 'duration:', -1), ' ', 1) AS DECIMAL(10,2))
-           ELSE 0
-         END
-       ) FROM civicrm_job_log WHERE 1=1 $whereClause"
-    ) ?: 0;
-
+    $whereClause = $this->buildWhereClause($filters, 'start_log');
+    $avgDuration = CRM_Core_DAO::singleValueQuery("
+    SELECT
+      AVG(TIMESTAMPDIFF(SECOND, start_log.run_time, finish_log.run_time)) as avg_duration
+    FROM civicrm_job_log start_log
+    INNER JOIN civicrm_job_log finish_log ON (
+      start_log.job_id = finish_log.job_id
+      AND finish_log.run_time > start_log.run_time
+      AND finish_log.run_time = (
+        SELECT MIN(f2.run_time)
+        FROM civicrm_job_log f2
+        WHERE f2.job_id = start_log.job_id
+          AND f2.run_time > start_log.run_time
+          AND (f2.description LIKE '%Finished execution%')
+      )
+    )
+    WHERE (start_log.description LIKE 'Starting execution%')
+      AND (finish_log.description LIKE '%Finished execution%')
+      -- AND start_log.run_time >= DATE_SUB(NOW(), INTERVAL $days DAY)
+      AND TIMESTAMPDIFF(SECOND, start_log.run_time, finish_log.run_time) BETWEEN 1 AND 86400
+      $whereClause
+  ");
     return [
       'total_executions' => $totalExecutions,
       'success_count' => $successCount,
@@ -183,6 +194,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
       case 'executions':
         return $this->getExecutionsChartData($whereClause, $interval, $days);
       case 'duration':
+        $whereClause = $this->buildWhereClause($filters, 'start_log');
         return $this->getDurationChartData($whereClause, $interval, $days);
       case 'errors':
         return $this->getErrorsChartData($whereClause, $interval, $days);
@@ -199,14 +211,13 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
   private function getExecutionsChartData($whereClause, $interval, $days) {
     $query = "
       SELECT
-        DATE($interval(run_time)) as period,
+        DATE_FORMAT(run_time, $interval) as period,
         COUNT(*) as executions
       FROM civicrm_job_log
-      WHERE run_time >= DATE_SUB(NOW(), INTERVAL $days DAY) $whereClause
-      GROUP BY DATE($interval(run_time))
+      WHERE description like 'Starting execution%' AND run_time >= DATE_SUB(NOW(), INTERVAL $days DAY) $whereClause
+      GROUP BY DATE_FORMAT(run_time, $interval)
       ORDER BY period
     ";
-
     return $this->executeChartQuery($query);
   }
 
@@ -215,20 +226,33 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
    */
   private function getDurationChartData($whereClause, $interval, $days) {
     $query = "
-      SELECT
-        DATE($interval(run_time)) as period,
-        AVG(
-          CASE
-            WHEN data LIKE '%duration:%' THEN
-              CAST(SUBSTRING_INDEX(SUBSTRING_INDEX(data, 'duration:', -1), ' ', 1) AS DECIMAL(10,2))
-            ELSE 0
-          END
-        ) as avg_duration
-      FROM civicrm_job_log
-      WHERE run_time >= DATE_SUB(NOW(), INTERVAL $days DAY) $whereClause
-      GROUP BY DATE($interval(run_time))
-      ORDER BY period
-    ";
+    SELECT
+      DATE_FORMAT(start_log.run_time, $interval) as period,
+     AVG(TIMESTAMPDIFF(SECOND, start_log.run_time, finish_log.run_time)) as avg_duration
+     -- ROUND(AVG(TIMESTAMPDIFF(SECOND, start_log.run_time, finish_log.run_time) / 60), 2) as avg_duration
+     -- COUNT(*) as job_count,
+     -- MIN(TIMESTAMPDIFF(SECOND, start_log.run_time, finish_log.run_time)) as min_duration_seconds,
+     -- MAX(TIMESTAMPDIFF(SECOND, start_log.run_time, finish_log.run_time)) as max_duration_seconds
+    FROM civicrm_job_log start_log
+    INNER JOIN civicrm_job_log finish_log ON (
+      start_log.job_id = finish_log.job_id
+      AND finish_log.run_time > start_log.run_time
+      AND finish_log.run_time = (
+        SELECT MIN(f2.run_time)
+        FROM civicrm_job_log f2
+        WHERE f2.job_id = start_log.job_id
+          AND f2.run_time > start_log.run_time
+          AND (f2.description LIKE '%Finished execution%')
+      )
+    )
+    WHERE (start_log.description LIKE 'Starting execution%')
+      AND (finish_log.description LIKE '%Finished execution%')
+      AND start_log.run_time >= DATE_SUB(NOW(), INTERVAL $days DAY)
+      AND TIMESTAMPDIFF(SECOND, start_log.run_time, finish_log.run_time) BETWEEN 1 AND 86400
+      $whereClause
+    GROUP BY DATE_FORMAT(start_log.run_time, $interval)
+    ORDER BY period
+  ";
 
     return $this->executeChartQuery($query);
   }
@@ -239,11 +263,11 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
   private function getErrorsChartData($whereClause, $interval, $days) {
     $query = "
       SELECT
-        DATE($interval(run_time)) as period,
+        DATE_FORMAT(run_time, $interval) as period,
         SUM(CASE WHEN data LIKE '%error%' OR data LIKE '%failed%' THEN 1 ELSE 0 END) as errors
       FROM civicrm_job_log
-      WHERE run_time >= DATE_SUB(NOW(), INTERVAL $days DAY) $whereClause
-      GROUP BY DATE($interval(run_time))
+      WHERE description like 'Finished execution%' AND run_time >= DATE_SUB(NOW(), INTERVAL $days DAY) $whereClause
+      GROUP BY DATE_FORMAT(run_time, $interval)
       ORDER BY period
     ";
 
@@ -256,14 +280,14 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
   private function getSuccessRateChartData($whereClause, $interval, $days) {
     $query = "
       SELECT
-        DATE($interval(run_time)) as period,
+        DATE_FORMAT(run_time, $interval) as period,
         ROUND(
           (SUM(CASE WHEN data NOT LIKE '%error%' AND data NOT LIKE '%failed%' THEN 1 ELSE 0 END) / COUNT(*)) * 100,
           1
         ) as success_rate
       FROM civicrm_job_log
-      WHERE run_time >= DATE_SUB(NOW(), INTERVAL $days DAY) $whereClause
-      GROUP BY DATE($interval(run_time))
+      WHERE description like 'Finished execution%' AND run_time >= DATE_SUB(NOW(), INTERVAL $days DAY) $whereClause
+      GROUP BY DATE_FORMAT(run_time, $interval)
       ORDER BY period
     ";
 
@@ -295,22 +319,30 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
    * @param array $filters
    * @return string
    */
-  private function buildWhereClause($filters = []) {
+  private function buildWhereClause($filters = [], $tablePrefix = '') {
     $conditions = [];
-
+    if (!empty($tablePrefix)) {
+      $tablePrefix = $tablePrefix . '.';
+    }
     if (!empty($filters['job_id'])) {
       $jobId = (int)$filters['job_id'];
-      $conditions[] = "job_id = $jobId";
+      $conditions[] = "{$tablePrefix}job_id = $jobId";
     }
 
     if (!empty($filters['start_date'])) {
       $startDate = CRM_Utils_Type::escape($filters['start_date'], 'String');
-      $conditions[] = "run_time >= '$startDate'";
+      $conditions[] = "{$tablePrefix}run_time >= '$startDate'";
     }
 
     if (!empty($filters['end_date'])) {
       $endDate = CRM_Utils_Type::escape($filters['end_date'], 'String');
-      $conditions[] = "run_time <= '$endDate'";
+      $conditions[] = "{$tablePrefix}run_time <= '$endDate'";
+    }
+
+    $dateRange = $this->getDateRange($filters);
+    if ($dateRange) {
+      $conditions[] = "{$tablePrefix}run_time >= '" . $dateRange['start'] . "'";
+      $conditions[] = "{$tablePrefix}run_time <= '" . $dateRange['end'] . "'";
     }
 
     if (!empty($filters['status'])) {
@@ -330,14 +362,45 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
    */
   private function getIntervalByDays($days) {
     if ($days <= 7) {
-      return 'HOUR'; // Hourly data for week view
+      return '"%Y-%m-%d-%H"'; // Hourly data for week view
     }
     elseif ($days <= 90) {
-      return 'DAY'; // Daily data for month/quarter view
+      return '"%Y-%m-%d"'; // Daily data for month/quarter view
     }
     else {
-      return 'WEEK'; // Weekly data for year view
+      return '"%Y-%m-%d"'; // Weekly data for year view
     }
+  }
+
+  /**
+   * Get date range based on various input formats
+   *
+   * @param array $params Input parameters
+   * @return array|null Array with 'start' and 'end' dates or null
+   */
+  private function getDateRange($params = []) {
+    $days = (int)$params['days'];
+
+    // Validate days input
+    if ($days <= 0) {
+      $days = 30; // Default fallback
+    }
+
+    // Limit maximum range to prevent performance issues
+    if ($days > 3650) { // 10 years max
+      $days = 3650;
+    }
+
+    $endDate = new DateTime();
+    $startDate = new DateTime();
+    $startDate->sub(new DateInterval("P{$days}D"));
+
+    return [
+      'start' => $startDate->format('Y-m-d 00:00:00'),
+      'end' => $endDate->format('Y-m-d 23:59:59'),
+      'days' => $days
+    ];
+    return $dateRange;
   }
 
   /**
@@ -410,6 +473,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
    */
   private function getDateRangeOptions() {
     return [
+      '1' => ts('Last 1 days'),
       '7' => ts('Last 7 days'),
       '30' => ts('Last 30 days'),
       '90' => ts('Last 90 days'),

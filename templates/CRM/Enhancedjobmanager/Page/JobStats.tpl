@@ -1,9 +1,3 @@
-{*
- * Job Log Statistics Template
- * File: templates/CRM/Enhancedjobmanager/Page/JobStats.tpl
- *}
-
-{* Include CiviCRM page wrapper *}
 <div class="crm-block crm-content-block crm-job-stats-block">
 
   {* Page Header *}
@@ -43,18 +37,6 @@
                   <option value="{$value}" {if $value == 30}selected{/if}>{$label}</option>
                 {/foreach}
               </select>
-            </td>
-            <td class="label">
-              <label for="custom-start">{ts}Custom Start{/ts}</label>
-            </td>
-            <td>
-              <input type="text" id="custom-start" name="start_date" class="crm-form-date" />
-            </td>
-            <td class="label">
-              <label for="custom-end">{ts}Custom End{/ts}</label>
-            </td>
-            <td>
-              <input type="text" id="custom-end" name="end_date" class="crm-form-date" />
             </td>
             <td>
               <button type="button" id="refresh-stats" class="crm-button crm-button-type-refresh">
