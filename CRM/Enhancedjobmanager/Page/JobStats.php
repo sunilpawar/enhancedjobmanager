@@ -9,8 +9,8 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
 
     // Add CSS and JS resources
     CRM_Core_Resources::singleton()
-      ->addStyleFile('com.example.enhancedjobmanager', 'css/jobstats.css')
-      ->addScriptFile('com.example.enhancedjobmanager', 'js/jobstats.js')
+      ->addStyleFile('com.skvare.enhancedjobmanager', 'css/jobstats.css')
+      ->addScriptFile('com.skvare.enhancedjobmanager', 'js/jobstats.js')
       ->addScriptUrl('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js');
 
     // Get initial data for the page
@@ -85,14 +85,13 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
         j.description,
         j.is_active,
         j.last_run,
-        j.next_run_date,
         COUNT(jl.id) as execution_count,
         SUM(CASE WHEN jl.data NOT LIKE '%error%' AND jl.data NOT LIKE '%failed%' THEN 1 ELSE 0 END) as success_count,
         SUM(CASE WHEN jl.data LIKE '%error%' OR jl.data LIKE '%failed%' THEN 1 ELSE 0 END) as error_count
       FROM civicrm_job j
       LEFT JOIN civicrm_job_log jl ON j.id = jl.job_id
         AND jl.run_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
-      GROUP BY j.id, j.name, j.api_entity, j.api_action, j.description, j.is_active, j.last_run, j.next_run_date
+      GROUP BY j.id, j.name, j.api_entity, j.api_action, j.description, j.is_active, j.last_run
       ORDER BY j.name
     ";
 
@@ -109,7 +108,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
         'description' => $dao->description,
         'is_active' => $dao->is_active,
         'last_run' => $dao->last_run,
-        'next_run' => $dao->next_run_date,
+        'next_run' => date('Y-m-d H:i:s', strtotime($dao->last_run) + 86400), // Assuming daily jobs
         'execution_count' => $dao->execution_count,
         'success_count' => $dao->success_count,
         'error_count' => $dao->error_count,
