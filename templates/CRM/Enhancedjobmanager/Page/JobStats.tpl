@@ -1,0 +1,944 @@
+{*
+ * Job Log Statistics Template
+ * File: templates/CRM/Enhancedjobmanager/Page/JobStats.tpl
+ *}
+
+{* Include CiviCRM page wrapper *}
+<div class="crm-block crm-content-block crm-job-stats-block">
+
+  {* Page Header *}
+  <div class="job-stats-header">
+    <h1 class="page-title">
+      <i class="crm-i fa-chart-bar" aria-hidden="true"></i>
+      {ts}Job Log Statistics{/ts}
+    </h1>
+    <p class="page-description">
+      {ts}Monitor and analyze your CiviCRM scheduled jobs performance{/ts}
+    </p>
+  </div>
+
+  {* Control Panel *}
+  <div class="job-stats-controls">
+    <div class="crm-section">
+      <div class="crm-form-block">
+        <table class="form-layout">
+          <tr>
+            <td class="label">
+              <label for="job-select">{ts}Select Job{/ts}</label>
+            </td>
+            <td>
+              <select id="job-select" name="job_id" class="crm-select2">
+                <option value="">{ts}All Jobs{/ts}</option>
+                {foreach from=$jobList item=job}
+                  <option value="{$job.id}">{$job.name}</option>
+                {/foreach}
+              </select>
+            </td>
+            <td class="label">
+              <label for="date-range">{ts}Date Range{/ts}</label>
+            </td>
+            <td>
+              <select id="date-range" name="date_range" class="crm-select2">
+                {foreach from=$dateRanges key=value item=label}
+                  <option value="{$value}" {if $value == 30}selected{/if}>{$label}</option>
+                {/foreach}
+              </select>
+            </td>
+            <td class="label">
+              <label for="custom-start">{ts}Custom Start{/ts}</label>
+            </td>
+            <td>
+              <input type="text" id="custom-start" name="start_date" class="crm-form-date" />
+            </td>
+            <td class="label">
+              <label for="custom-end">{ts}Custom End{/ts}</label>
+            </td>
+            <td>
+              <input type="text" id="custom-end" name="end_date" class="crm-form-date" />
+            </td>
+            <td>
+              <button type="button" id="refresh-stats" class="crm-button crm-button-type-refresh">
+                <i class="crm-i fa-sync" aria-hidden="true"></i>
+                {ts}Refresh{/ts}
+              </button>
+            </td>
+          </tr>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {* Statistics Cards *}
+  <div class="job-stats-summary">
+    <div class="stats-grid">
+      <div class="stat-card" id="total-executions-card">
+        <div class="stat-icon">
+          <i class="crm-i fa-play-circle"></i>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value" id="total-executions">{$jobStats.total_executions|default:0}</div>
+          <div class="stat-label">{ts}Total Executions{/ts}</div>
+          <div class="stat-trend" id="executions-trend"></div>
+        </div>
+      </div>
+
+      <div class="stat-card" id="success-rate-card">
+        <div class="stat-icon success">
+          <i class="crm-i fa-check-circle"></i>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value" id="success-rate">{$jobStats.success_rate|default:0}%</div>
+          <div class="stat-label">{ts}Success Rate{/ts}</div>
+          <div class="stat-trend" id="success-trend"></div>
+        </div>
+      </div>
+
+      <div class="stat-card" id="error-rate-card">
+        <div class="stat-icon error">
+          <i class="crm-i fa-exclamation-circle"></i>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value" id="error-rate">{$jobStats.error_rate|default:0}%</div>
+          <div class="stat-label">{ts}Error Rate{/ts}</div>
+          <div class="stat-trend" id="error-trend"></div>
+        </div>
+      </div>
+
+      <div class="stat-card" id="avg-duration-card">
+        <div class="stat-icon">
+          <i class="crm-i fa-clock"></i>
+        </div>
+        <div class="stat-content">
+          <div class="stat-value" id="avg-duration">{$jobStats.avg_duration|default:0}s</div>
+          <div class="stat-label">{ts}Avg Duration{/ts}</div>
+          <div class="stat-trend" id="duration-trend"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  {* Chart Section *}
+  <div class="job-stats-chart">
+    <div class="crm-section">
+      <div class="crm-section-header">
+        <h3>{ts}Performance Overview{/ts}</h3>
+        <div class="chart-controls">
+          <div class="chart-tabs">
+            <button type="button" class="chart-tab active" data-chart="executions">
+              {ts}Executions{/ts}
+            </button>
+            <button type="button" class="chart-tab" data-chart="duration">
+              {ts}Duration{/ts}
+            </button>
+            <button type="button" class="chart-tab" data-chart="errors">
+              {ts}Errors{/ts}
+            </button>
+            <button type="button" class="chart-tab" data-chart="success">
+              {ts}Success Rate{/ts}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="performance-chart"></canvas>
+      </div>
+    </div>
+  </div>
+
+  {* Job List Table *}
+  <div class="job-list-section">
+    <div class="crm-section">
+      <div class="crm-section-header">
+        <h3>{ts}Job Performance Summary{/ts}</h3>
+      </div>
+      <div class="crm-form-block">
+        <div id="job-list-loading" class="crm-loading-element" style="display: none;">
+          {ts}Loading job data...{/ts}
+        </div>
+        <table id="job-performance-table" class="display" cellspacing="0" width="100%">
+          <thead>
+          <tr>
+            <th>{ts}Job Name{/ts}</th>
+            <th>{ts}Status{/ts}</th>
+            <th>{ts}API Call{/ts}</th>
+            <th>{ts}Last Run{/ts}</th>
+            <th>{ts}Next Run{/ts}</th>
+            <th>{ts}Executions (30d){/ts}</th>
+            <th>{ts}Error Rate{/ts}</th>
+            <th>{ts}Actions{/ts}</th>
+          </tr>
+          </thead>
+          <tbody>
+          {foreach from=$jobList item=job}
+            <tr data-job-id="{$job.id}">
+              <td>
+                <strong>{$job.name}</strong>
+                {if $job.description}
+                  <br><small class="description">{$job.description|truncate:100}</small>
+                {/if}
+              </td>
+              <td>
+                  <span class="crm-status-{$job.status}">
+                    {if $job.status == 'success'}
+                      <i class="crm-i fa-check-circle"></i> {ts}Healthy{/ts}
+                    {elseif $job.status == 'warning'}
+                      <i class="crm-i fa-exclamation-triangle"></i> {ts}Warning{/ts}
+                    {elseif $job.status == 'error'}
+                      <i class="crm-i fa-times-circle"></i> {ts}Error{/ts}
+                    {else}
+                      <i class="crm-i fa-question-circle"></i> {ts}Unknown{/ts}
+                    {/if}
+                  </span>
+              </td>
+              <td>
+                <code>{$job.api_call}</code>
+              </td>
+              <td>
+                {if $job.last_run}
+                  {$job.last_run|crmDate}
+                {else}
+                  <em>{ts}Never{/ts}</em>
+                {/if}
+              </td>
+              <td>
+                {if $job.next_run}
+                  {$job.next_run|crmDate}
+                {else}
+                  <em>{ts}Not scheduled{/ts}</em>
+                {/if}
+              </td>
+              <td class="text-center">
+                {$job.execution_count|default:0}
+              </td>
+              <td class="text-center">
+                  <span class="error-rate {if $job.error_rate > 10}high-error{elseif $job.error_rate > 5}medium-error{else}low-error{/if}">
+                    {$job.error_rate}%
+                  </span>
+              </td>
+              <td>
+                <div class="crm-submit-buttons">
+                  <a href="{crmURL p='civicrm/admin/job' q="action=update&id=`$job.id`&reset=1"}"
+                     class="crm-button crm-button-small" title="{ts}Edit Job{/ts}">
+                    <i class="crm-i fa-edit"></i>
+                  </a>
+                  <button type="button" class="crm-button crm-button-small view-job-logs"
+                          data-job-id="{$job.id}" title="{ts}View Logs{/ts}">
+                    <i class="crm-i fa-list"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          {/foreach}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  {* Recent Executions *}
+  <div class="recent-executions-section">
+    <div class="crm-section">
+      <div class="crm-section-header">
+        <h3>{ts}Recent Job Executions{/ts}</h3>
+        <div class="section-actions">
+          <button type="button" id="refresh-executions" class="crm-button crm-button-small">
+            <i class="crm-i fa-sync"></i> {ts}Refresh{/ts}
+          </button>
+        </div>
+      </div>
+      <div class="crm-form-block">
+        <div id="executions-loading" class="crm-loading-element" style="display: none;">
+          {ts}Loading recent executions...{/ts}
+        </div>
+        <table id="recent-executions-table" class="display" cellspacing="0" width="100%">
+          <thead>
+          <tr>
+            <th>{ts}Job Name{/ts}</th>
+            <th>{ts}Status{/ts}</th>
+            <th>{ts}Run Time{/ts}</th>
+            <th>{ts}Duration{/ts}</th>
+            <th>{ts}Command{/ts}</th>
+            <th>{ts}Details{/ts}</th>
+          </tr>
+          </thead>
+          <tbody>
+          {foreach from=$recentExecutions item=execution}
+            <tr data-execution-id="{$execution.id}" class="execution-{$execution.status}">
+              <td>{$execution.job_name}</td>
+              <td>
+                  <span class="crm-status-{$execution.status}">
+                    {if $execution.status == 'success'}
+                      <i class="crm-i fa-check-circle text-success"></i> {ts}Success{/ts}
+                    {elseif $execution.status == 'warning'}
+                      <i class="crm-i fa-exclamation-triangle text-warning"></i> {ts}Warning{/ts}
+                    {elseif $execution.status == 'error'}
+                      <i class="crm-i fa-times-circle text-danger"></i> {ts}Error{/ts}
+                    {else}
+                      <i class="crm-i fa-question-circle text-muted"></i> {ts}Unknown{/ts}
+                    {/if}
+                  </span>
+              </td>
+              <td>{$execution.run_time|crmDate}</td>
+              <td>
+                {if $execution.duration}
+                  {$execution.duration}s
+                {else}
+                  <em>{ts}N/A{/ts}</em>
+                {/if}
+              </td>
+              <td>
+                {if $execution.command}
+                  <code class="small">{$execution.command|truncate:50}</code>
+                {else}
+                  <code class="small">{$execution.api_call}</code>
+                {/if}
+              </td>
+              <td>
+                <button type="button" class="crm-button crm-button-small view-execution-details"
+                        data-execution-id="{$execution.id}" title="{ts}View Details{/ts}">
+                  <i class="crm-i fa-eye"></i>
+                </button>
+              </td>
+            </tr>
+          {/foreach}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+{* Job Log Details Modal *}
+<div id="job-log-modal" class="crm-container" style="display: none;">
+  <div class="modal-header">
+    <h3 id="modal-title">{ts}Job Execution Details{/ts}</h3>
+    <button type="button" class="close-modal">&times;</button>
+  </div>
+  <div class="modal-body">
+    <div id="modal-content">
+      <div class="loading">
+        <i class="crm-i fa-spinner fa-spin"></i>
+        {ts}Loading details...{/ts}
+      </div>
+    </div>
+  </div>
+</div>
+
+{* Include JavaScript *}
+{literal}
+  <script type="text/javascript">
+    CRM.$(function($) {
+      var jobStatsManager = {
+        // Chart instance
+        chart: null,
+        currentChartType: 'executions',
+
+        // Initialize the page
+        init: function() {
+          this.initChart();
+          this.bindEvents();
+          this.initDataTables();
+          this.loadData();
+        },
+
+        // Initialize Chart.js
+        initChart: function() {
+          var ctx = document.getElementById('performance-chart').getContext('2d');
+          this.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+              labels: [],
+              datasets: [{
+                label: 'Data',
+                data: [],
+                borderColor: '#4f46e5',
+                backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                fill: true,
+                tension: 0.4
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: {
+                  display: false
+                }
+              },
+              scales: {
+                x: {
+                  grid: {
+                    display: false
+                  }
+                },
+                y: {
+                  grid: {
+                    color: '#f3f4f6'
+                  }
+                }
+              }
+            }
+          });
+        },
+
+        // Bind event handlers
+        bindEvents: function() {
+          var self = this;
+
+          // Chart tab switching
+          $('.chart-tab').on('click', function() {
+            $('.chart-tab').removeClass('active');
+            $(this).addClass('active');
+            self.currentChartType = $(this).data('chart');
+            self.loadChartData();
+          });
+
+          // Refresh button
+          $('#refresh-stats').on('click', function() {
+            self.loadData();
+          });
+
+          // Filter changes
+          $('#job-select, #date-range').on('change', function() {
+            self.loadData();
+          });
+
+          // Custom date inputs
+          $('#custom-start, #custom-end').on('change', function() {
+            if ($('#custom-start').val() && $('#custom-end').val()) {
+              $('#date-range').val('custom');
+              self.loadData();
+            }
+          });
+
+          // View job logs
+          $(document).on('click', '.view-job-logs', function() {
+            var jobId = $(this).data('job-id');
+            self.showJobLogs(jobId);
+          });
+
+          // View execution details
+          $(document).on('click', '.view-execution-details', function() {
+            var executionId = $(this).data('execution-id');
+            self.showExecutionDetails(executionId);
+          });
+
+          // Modal close
+          $(document).on('click', '.close-modal', function() {
+            $('#job-log-modal').hide();
+          });
+
+          // Refresh executions
+          $('#refresh-executions').on('click', function() {
+            self.loadRecentExecutions();
+          });
+        },
+
+        // Initialize DataTables
+        initDataTables: function() {
+          $('#job-performance-table').DataTable({
+            pageLength: 25,
+            order: [[6, 'desc']], // Order by error rate desc
+            columnDefs: [
+              { targets: [5, 6], className: 'text-center' },
+              { targets: [7], orderable: false }
+            ]
+          });
+
+          $('#recent-executions-table').DataTable({
+            pageLength: 50,
+            order: [[2, 'desc']], // Order by run time desc
+            columnDefs: [
+              { targets: [3, 5], className: 'text-center' },
+              { targets: [5], orderable: false }
+            ]
+          });
+        },
+
+        // Load all data
+        loadData: function() {
+          this.loadStats();
+          this.loadChartData();
+          this.loadJobList();
+          this.loadRecentExecutions();
+        },
+
+        // Load statistics
+        loadStats: function() {
+          var filters = this.getFilters();
+
+          CRM.api3('JobLogStats', 'get', filters).done(function(result) {
+            if (result.values) {
+              $('#total-executions').text(result.values.total_executions.toLocaleString());
+              $('#success-rate').text(result.values.success_rate + '%');
+              $('#error-rate').text(result.values.error_rate + '%');
+              $('#avg-duration').text(result.values.avg_duration + 's');
+            }
+          });
+        },
+
+        // Load chart data
+        loadChartData: function() {
+          var self = this;
+          var filters = this.getFilters();
+          filters.chart_type = this.currentChartType;
+
+          CRM.api3('JobLogStats', 'chart', filters).done(function(result) {
+            if (result.values && result.values.length > 0) {
+              var labels = result.values.map(function(item) {
+                return new Date(item.period).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+              });
+              var data = result.values.map(function(item) {
+                return item.value;
+              });
+
+              self.chart.data.labels = labels;
+              self.chart.data.datasets[0].data = data;
+              self.chart.data.datasets[0].label = self.getChartLabel(self.currentChartType);
+              self.chart.update();
+            }
+          });
+        },
+
+        // Load job list
+        loadJobList: function() {
+          $('#job-list-loading').show();
+
+          CRM.api3('JobLogStats', 'performance').done(function(result) {
+            // Update job performance table
+            var table = $('#job-performance-table').DataTable();
+            table.clear();
+
+            if (result.values) {
+              result.values.forEach(function(job) {
+                var statusIcon = '';
+                switch(job.status) {
+                  case 'success':
+                    statusIcon = '<i class="crm-i fa-check-circle text-success"></i> Healthy';
+                    break;
+                  case 'warning':
+                    statusIcon = '<i class="crm-i fa-exclamation-triangle text-warning"></i> Warning';
+                    break;
+                  case 'error':
+                    statusIcon = '<i class="crm-i fa-times-circle text-danger"></i> Error';
+                    break;
+                  default:
+                    statusIcon = '<i class="crm-i fa-question-circle text-muted"></i> Unknown';
+                }
+
+                var lastRun = job.last_run ? new Date(job.last_run).toLocaleString() : 'Never';
+                var nextRun = job.next_run ? new Date(job.next_run).toLocaleString() : 'Not scheduled';
+
+                table.row.add([
+                  '<strong>' + job.name + '</strong>' + (job.description ? '<br><small>' + job.description.substring(0, 100) + '</small>' : ''),
+                  statusIcon,
+                  '<code>' + job.api_call + '</code>',
+                  lastRun,
+                  nextRun,
+                  job.execution_count || 0,
+                  '<span class="error-rate ' + (job.error_rate > 10 ? 'high-error' : job.error_rate > 5 ? 'medium-error' : 'low-error') + '">' + job.error_rate + '%</span>',
+                  '<button type="button" class="crm-button crm-button-small view-job-logs" data-job-id="' + job.id + '"><i class="crm-i fa-list"></i></button>'
+                ]);
+              });
+            }
+
+            table.draw();
+            $('#job-list-loading').hide();
+          });
+        },
+
+        // Load recent executions
+        loadRecentExecutions: function() {
+          $('#executions-loading').show();
+
+          CRM.api3('JobLogStats', 'recentexecutions').done(function(result) {
+            var table = $('#recent-executions-table').DataTable();
+            table.clear();
+
+            if (result.values) {
+              result.values.forEach(function(execution) {
+                var statusIcon = '';
+                switch(execution.status) {
+                  case 'success':
+                    statusIcon = '<i class="crm-i fa-check-circle text-success"></i> Success';
+                    break;
+                  case 'warning':
+                    statusIcon = '<i class="crm-i fa-exclamation-triangle text-warning"></i> Warning';
+                    break;
+                  case 'error':
+                    statusIcon = '<i class="crm-i fa-times-circle text-danger"></i> Error';
+                    break;
+                  default:
+                    statusIcon = '<i class="crm-i fa-question-circle text-muted"></i> Unknown';
+                }
+
+                var runTime = new Date(execution.run_time).toLocaleString();
+                var duration = execution.duration ? execution.duration + 's' : 'N/A';
+                var command = execution.command ? execution.command.substring(0, 50) : execution.api_call;
+
+                table.row.add([
+                  execution.job_name,
+                  statusIcon,
+                  runTime,
+                  duration,
+                  '<code class="small">' + command + '</code>',
+                  '<button type="button" class="crm-button crm-button-small view-execution-details" data-execution-id="' + execution.id + '"><i class="crm-i fa-eye"></i></button>'
+                ]);
+              });
+            }
+
+            table.draw();
+            $('#executions-loading').hide();
+          });
+        },
+
+        // Get current filters
+        getFilters: function() {
+          var filters = {};
+
+          var jobId = $('#job-select').val();
+          if (jobId) {
+            filters.job_id = jobId;
+          }
+
+          var dateRange = $('#date-range').val();
+          if (dateRange === 'custom') {
+            var startDate = $('#custom-start').val();
+            var endDate = $('#custom-end').val();
+            if (startDate) filters.start_date = startDate;
+            if (endDate) filters.end_date = endDate;
+          } else {
+            filters.days = parseInt(dateRange);
+          }
+
+          return filters;
+        },
+
+        // Get chart label
+        getChartLabel: function(chartType) {
+          switch(chartType) {
+            case 'executions': return 'Job Executions';
+            case 'duration': return 'Average Duration (seconds)';
+            case 'errors': return 'Error Count';
+            case 'success': return 'Success Rate (%)';
+            default: return 'Data';
+          }
+        },
+
+        // Show job logs modal
+        showJobLogs: function(jobId) {
+          $('#modal-title').text('Job Logs');
+          $('#modal-content').html('<div class="loading"><i class="crm-i fa-spinner fa-spin"></i> Loading job logs...</div>');
+          $('#job-log-modal').show();
+
+          // Load job logs via API
+          // Implementation would depend on your specific job log API
+        },
+
+        // Show execution details modal
+        showExecutionDetails: function(executionId) {
+          $('#modal-title').text('Execution Details');
+          $('#modal-content').html('<div class="loading"><i class="crm-i fa-spinner fa-spin"></i> Loading execution details...</div>');
+          $('#job-log-modal').show();
+
+          // Load execution details via API
+          // Implementation would depend on your specific execution details API
+        }
+      };
+
+      // Initialize when page loads
+      jobStatsManager.init();
+    });
+  </script>
+{/literal}
+
+{* Include CSS styles *}
+<style type="text/css">
+  {literal}
+  .job-stats-header {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+    color: white;
+    padding: 2rem;
+    margin: -1rem -1rem 2rem -1rem;
+    text-align: center;
+  }
+
+  .job-stats-header h1 {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  .job-stats-header .page-description {
+    opacity: 0.9;
+    font-size: 1.1rem;
+  }
+
+  .job-stats-controls {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+  }
+
+  .job-stats-controls .form-layout {
+    margin: 0;
+  }
+
+  .job-stats-controls .form-layout td {
+    padding: 8px 12px;
+    vertical-align: middle;
+  }
+
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .stat-card {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+  }
+
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  .stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #4f46e5;
+    color: white;
+    font-size: 1.5rem;
+  }
+
+  .stat-icon.success {
+    background: #10b981;
+  }
+
+  .stat-icon.error {
+    background: #ef4444;
+  }
+
+  .stat-content {
+    flex: 1;
+  }
+
+  .stat-value {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: #1f2937;
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 0.9rem;
+    color: #6b7280;
+    margin-top: 0.25rem;
+  }
+
+  .stat-trend {
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    display: inline-block;
+  }
+
+  .job-stats-chart {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .chart-controls {
+    display: flex;
+    gap: 1rem;
+    align-items: center;
+  }
+
+  .chart-tabs {
+    display: flex;
+    background: #f8fafc;
+    border-radius: 8px;
+    padding: 4px;
+    gap: 2px;
+  }
+
+  .chart-tab {
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: #6b7280;
+    font-weight: 500;
+  }
+
+  .chart-tab.active {
+    background: white;
+    color: #4f46e5;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  }
+
+  .chart-container {
+    position: relative;
+    height: 400px;
+    margin-top: 1rem;
+  }
+
+  .job-list-section,
+  .recent-executions-section {
+    background: white;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 2rem;
+  }
+
+  .crm-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e2e8f0;
+  }
+
+  .section-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+
+  .crm-status-success {
+    color: #10b981;
+  }
+
+  .crm-status-warning {
+    color: #f59e0b;
+  }
+
+  .crm-status-error {
+    color: #ef4444;
+  }
+
+  .error-rate.high-error {
+    color: #ef4444;
+    font-weight: 600;
+  }
+
+  .error-rate.medium-error {
+    color: #f59e0b;
+    font-weight: 600;
+  }
+
+  .error-rate.low-error {
+    color: #10b981;
+  }
+
+  .execution-success {
+    background-color: rgba(16, 185, 129, 0.05);
+  }
+
+  .execution-error {
+    background-color: rgba(239, 68, 68, 0.05);
+  }
+
+  .execution-warning {
+    background-color: rgba(245, 158, 11, 0.05);
+  }
+
+  #job-log-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #job-log-modal .modal-header {
+    background: white;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  #job-log-modal .modal-body {
+    background: white;
+    padding: 1.5rem;
+    max-width: 800px;
+    max-height: 600px;
+    overflow-y: auto;
+    border-radius: 0 0 8px 8px;
+  }
+
+  .close-modal {
+    background: none;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+    color: #6b7280;
+  }
+
+  .crm-loading-element {
+    text-align: center;
+    padding: 2rem;
+    color: #6b7280;
+  }
+
+  @media (max-width: 768px) {
+    .stats-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .job-stats-controls .form-layout,
+    .job-stats-controls .form-layout tbody,
+    .job-stats-controls .form-layout tr {
+      display: block;
+      width: 100%;
+    }
+
+    .job-stats-controls .form-layout td {
+      display: block;
+      width: 100%;
+      padding: 8px 0;
+    }
+
+    .chart-controls {
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .crm-section-header {
+      flex-direction: column;
+      gap: 1rem;
+      align-items: stretch;
+    }
+  }
+  {/literal}
+</style>

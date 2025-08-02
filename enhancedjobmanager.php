@@ -39,3 +39,33 @@ function enhancedjobmanager_civicrm_enable(): void {
 function enhancedjobmanager_civicrm_alterMenu(&$items) {
   $items['civicrm/admin/job']['page_callback'] = 'CRM_Enhancedjobmanager_Page_Job';
 }
+
+/**
+ * Implements hook_civicrm_navigationMenu().
+ *
+ * @link https://docs.civicrm.org/dev/en/latest/hooks/hook_civicrm_navigationMenu
+ */
+function enhancedjobmanager_civicrm_navigationMenu(&$menu) {
+  _enhancedjobmanager_civix_insert_navigation_menu($menu, 'Administer/System Settings', [
+    'label' => E::ts('Job Statistics'),
+    'name' => 'job_statistics',
+    'url' => 'civicrm/admin/job/stats',
+    'permission' => 'administer CiviCRM',
+    'operator' => 'OR',
+    'separator' => 0,
+    'icon' => 'crm-i fa-chart-bar',
+  ]);
+
+  // Also add to the main job management area
+  _enhancedjobmanager_civix_insert_navigation_menu($menu, 'Administer/System Settings', [
+    'label' => E::ts('Enhanced Job Manager'),
+    'name' => 'enhanced_job_manager',
+    'url' => 'civicrm/admin/job/enhanced',
+    'permission' => 'administer CiviCRM',
+    'operator' => 'OR',
+    'separator' => 0,
+    'icon' => 'crm-i fa-tasks',
+  ]);
+
+  _enhancedjobmanager_civix_navigationMenu($menu);
+}

@@ -1,0 +1,52 @@
+<?xml version="1.0"?>
+<menu>
+  <item>
+    <path>civicrm/admin/job/stats</path>
+    <page_callback>CRM_Enhancedjobmanager_Page_JobStats</page_callback>
+    <title>Job Stats</title>
+    <access_arguments>administer CiviCRM</access_arguments>
+  </item>
+  <item>
+    <path>civicrm/admin/job/enhanced</path>
+    <page_callback>CRM_Enhancedjobmanager_Page_EnhancedJobManager</page_callback>
+    <title>Enhanced Job Manager</title>
+    <access_arguments>administer CiviCRM</access_arguments>
+    <page_type>1</page_type>
+    <weight>1</weight>
+  </item>
+  <item>
+    <path>civicrm/admin/job/stats/ajax/getstats</path>
+    <page_callback>CRM_Enhancedjobmanager_Page_JobStatsAjax::getStats</page_callback>
+    <access_arguments>view job statistics</access_arguments>
+    <page_type>1</page_type>
+    <is_public>false</is_public>
+  </item>
+  <item>
+    <path>civicrm/admin/job/stats/ajax/getchartdata</path>
+    <page_callback>CRM_Enhancedjobmanager_Page_JobStatsAjax::getChartData</page_callback>
+    <access_arguments>view job statistics</access_arguments>
+    <page_type>1</page_type>
+    <is_public>false</is_public>
+  </item>
+  <item>
+    <path>civicrm/admin/job/stats/ajax/getjoblist</path>
+    <page_callback>CRM_Enhancedjobmanager_Page_JobStatsAjax::getJobList</page_callback>
+    <access_arguments>view job statistics</access_arguments>
+    <page_type>1</page_type>
+    <is_public>false</is_public>
+  </item>
+  <item>
+    <path>civicrm/admin/job/stats/ajax/getrecentexecutions</path>
+    <page_callback>CRM_Enhancedjobmanager_Page_JobStatsAjax::getRecentExecutions</page_callback>
+    <access_arguments>view job statistics</access_arguments>
+    <page_type>1</page_type>
+    <is_public>false</is_public>
+  </item>
+  <item>
+    <path>civicrm/admin/job/stats/ajax/getexecutiondetails</path>
+    <page_callback>CRM_Enhancedjobmanager_Page_JobStatsAjax::getExecutionDetails</page_callback>
+    <access_arguments>view job statistics</access_arguments>
+    <page_type>1</page_type>
+    <is_public>false</is_public>
+  </item>
+</menu>
