@@ -173,13 +173,6 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 4. Make your changes
 5. Submit a pull request
 
-### Coding Standards
-
-- Follow CiviCRM coding standards
-- Include unit tests for new functionality
-- Update documentation as needed
-- Ensure backward compatibility
-
 ## Support
 
 - **Documentation**: [Extension Documentation](https://github.com/skvare/enhancedjobmanager/wiki)
@@ -193,17 +186,30 @@ This extension is licensed under [AGPL-3.0](LICENSE.txt).
 
 ## Credits
 
-- **Author**: Sunil Pawar
-- **Organization**: [Skvare](https://skvare.com)
+Developed by [Skvare, LLC](https://skvare.com/contact) for the CiviCRM community.
 
-## Related Extensions
+## About Skvare
 
-- [CiviCRM Core Scheduled Jobs](https://docs.civicrm.org/sysadmin/en/latest/setup/jobs/)
-- [Job Scheduler](https://civicrm.org/extensions/job-scheduler)
-- [Advanced Logging](https://civicrm.org/extensions/advanced-logging)
+Skvare LLC specializes in CiviCRM development, Drupal integration, and providing technology solutions for nonprofit organizations, professional societies, membership-driven associations, and small businesses. We are committed to developing open source software that empowers our clients and the wider CiviCRM community.
+
+**Contact Information**:
+- Website: [https://skvare.com](https://skvare.com)
+- Email: info@skvare.com
+- GitHub: [https://github.com/Skvare](https://github.com/Skvare)
+
+## Support
+
+[Contact us](https://skvare.com/contact) for support or to learn more.
 
 ---
 
-**Made with ❤️ for the CiviCRM Community**
+## Related Extensions
 
-For more information about CiviCRM extensions, visit the [Skvare](https://skvare.com/contact).
+You might also be interested in other Skvare CiviCRM extensions:
+
+- **Database Custom Field Check**: Prevents adding custom fields when table limits are reached
+- **Image Resize**: Automatically resizes contact images for consistent display
+- **Registration Button Label**: Customize button labels on event registration pages
+- **Unlink User Account**: Safely unlink user accounts from contacts without deleting data
+
+For a complete list of our open source contributions, visit our [GitHub organization page](https://github.com/Skvare).
