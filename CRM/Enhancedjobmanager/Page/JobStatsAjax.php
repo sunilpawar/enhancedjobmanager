@@ -56,47 +56,9 @@ class CRM_Enhancedjobmanager_Page_JobStatsAjax {
    */
   public static function getExecutionDetails() {
     $executionId = CRM_Utils_Request::retrieve('execution_id', 'Integer');
-
-    if (!$executionId) {
-      CRM_Utils_JSON::output(['error' => 'Missing execution ID']);
-      return;
-    }
-
-    $query = "
-      SELECT
-        jl.*,
-        j.name as job_name,
-        j.api_entity,
-        j.api_action,
-        j.description as job_description
-      FROM civicrm_job_log jl
-      LEFT JOIN civicrm_job j ON jl.job_id = j.id
-      WHERE jl.id = %1
-    ";
-
-    $dao = CRM_Core_DAO::executeQuery($query, [
-      1 => [$executionId, 'Integer']
-    ]);
-
-    if ($dao->fetch()) {
-      $details = [
-        'id' => $dao->id,
-        'job_id' => $dao->job_id,
-        'job_name' => $dao->job_name ?: $dao->name,
-        'api_call' => $dao->api_entity . '.' . $dao->api_action,
-        'command' => $dao->command,
-        'description' => $dao->description,
-        'job_description' => $dao->job_description,
-        'run_time' => $dao->run_time,
-        'data' => $dao->data,
-        'formatted_data' => self::formatJobLogData($dao->data)
-      ];
-
-      CRM_Utils_JSON::output($details);
-    }
-    else {
-      CRM_Utils_JSON::output(['error' => 'Execution not found']);
-    }
+    $page = new CRM_Enhancedjobmanager_Page_JobStats();
+    $executionDetails = $page->getExecutionDetails($executionId);
+    CRM_Utils_JSON::output($executionDetails);
   }
 
   /**
@@ -128,51 +90,4 @@ class CRM_Enhancedjobmanager_Page_JobStatsAjax {
     return $filters;
   }
 
-  /**
-   * Format job log data for display
-   */
-  private static function formatJobLogData($data) {
-    if (empty($data)) {
-      return ['message' => 'No data available'];
-    }
-
-    // Try to parse as JSON first
-    $json = json_decode($data, TRUE);
-    if ($json !== NULL) {
-      return $json;
-    }
-
-    // If not JSON, try to extract key information
-    $formatted = [];
-
-    // Look for common patterns
-    if (preg_match('/duration:\s*([0-9.]+)/', $data, $matches)) {
-      $formatted['duration'] = $matches[1] . ' seconds';
-    }
-
-    if (preg_match('/memory:\s*([0-9.]+[KMG]?B?)/', $data, $matches)) {
-      $formatted['memory_usage'] = $matches[1];
-    }
-
-    if (preg_match('/processed:\s*([0-9,]+)/', $data, $matches)) {
-      $formatted['records_processed'] = $matches[1];
-    }
-
-    if (preg_match('/error/i', $data)) {
-      $formatted['status'] = 'error';
-      $formatted['has_errors'] = TRUE;
-    }
-    elseif (preg_match('/warning/i', $data)) {
-      $formatted['status'] = 'warning';
-      $formatted['has_warnings'] = TRUE;
-    }
-    else {
-      $formatted['status'] = 'success';
-    }
-
-    // Add raw data
-    $formatted['raw_data'] = $data;
-
-    return $formatted;
-  }
 }

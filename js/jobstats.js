@@ -266,8 +266,8 @@
           pageLength: 50,
           order: [[2, 'desc']], // Order by run time desc
           columnDefs: [
-            { targets: [3, 5], className: 'text-center' },
-            { targets: [5], orderable: false }
+            { targets: [3], className: 'text-center' },
+            { targets: [4], orderable: false }
           ],
           language: {
             search: 'Search executions:',
@@ -441,7 +441,7 @@
       data.forEach(job => {
         var statusHtml = this.getStatusHtml(job.status);
         var lastRun = job.last_run ? this.formatDate(job.last_run) : '<em>Never</em>';
-        var nextRun = job.next_run ? this.formatDate(job.next_run) : '<em>Not scheduled</em>';
+        var nextRun = job.next_run ? job.next_run : '<em>Not scheduled</em>';
         var errorRateClass = job.error_rate > 10 ? 'high-error' : job.error_rate > 5 ? 'medium-error' : 'low-error';
 
         table.row.add([

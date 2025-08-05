@@ -24,6 +24,14 @@ The Enhanced Job Manager extension transforms the default CiviCRM scheduled jobs
 - **Enhanced Monitoring**: Real-time status updates help identify issues faster
 - **User-Friendly**: Intuitive interface reduces training time for administrators
 - **Troubleshooting**: Detailed logs and metrics help diagnose job issues
+- **Support for CRONTAB**: Show crontab expressions in human-readable format
+
+
+![Screenshot](/images/manage_job.png)
+
+
+
+![Screenshot](/images/stats.gif)
 
 ## Requirements
 
@@ -95,7 +103,6 @@ Filter jobs by:
 - **Status**: Active, Inactive, Running, Failed
 - **Frequency**: Hourly, Daily, Weekly, Monthly, Always, Never
 - **Last Run**: Date ranges
-- **Custom Tags**: User-defined job categories
 
 ### Bulk Operations
 

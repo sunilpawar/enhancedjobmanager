@@ -2,6 +2,12 @@
 use CRM_Enhancedjobmanager_ExtensionUtil as E;
 
 class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
+  public $_domain_id;
+
+  public function __construct() {
+    $this->_domain_id = CRM_Core_Config::domainID();
+    parent::__construct();
+  }
 
   public function run() {
     // Set page title
@@ -12,6 +18,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
       ->addStyleFile('com.skvare.enhancedjobmanager', 'css/jobstats.css')
       ->addScriptFile('com.skvare.enhancedjobmanager', 'js/jobstats.js')
       ->addScriptUrl('https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js');
+
 
     // Get initial data for the page
     $jobStats = $this->getJobStatistics();
@@ -78,7 +85,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
       'error_count' => $errorCount,
       'success_rate' => $totalExecutions > 0 ? round(($successCount / $totalExecutions) * 100, 1) : 0,
       'error_rate' => $totalExecutions > 0 ? round(($errorCount / $totalExecutions) * 100, 1) : 0,
-      'avg_duration' => round($avgDuration, 2)
+      'avg_duration' => round($avgDuration, 2),
     ];
   }
 
@@ -89,29 +96,31 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
   public function getJobList() {
     $query = "
       SELECT DISTINCT
-        j.id,
-        j.name,
-        j.api_entity,
-        j.api_action,
-        j.description,
-        j.is_active,
-        j.last_run,
+        j.*,
         COUNT(jl.id) as execution_count,
         SUM(CASE WHEN jl.data NOT LIKE '%error%' AND jl.data NOT LIKE '%failed%' THEN 1 ELSE 0 END) as success_count,
         SUM(CASE WHEN jl.data LIKE '%error%' OR jl.data LIKE '%failed%' THEN 1 ELSE 0 END) as error_count
       FROM civicrm_job j
-      LEFT JOIN civicrm_job_log jl ON j.id = jl.job_id
+      INNER JOIN civicrm_job_log jl ON j.id = jl.job_id
         AND jl.run_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+      WHERE j.is_active = 1
+        AND j.domain_id = {$this->_domain_id}
       GROUP BY j.id, j.name, j.api_entity, j.api_action, j.description, j.is_active, j.last_run
       ORDER BY j.name
     ";
 
     $dao = CRM_Core_DAO::executeQuery($query);
     $jobs = [];
-
+    $page = new CRM_Enhancedjobmanager_Page_Job();
     while ($dao->fetch()) {
       $errorRate = $dao->execution_count > 0 ? round(($dao->error_count / $dao->execution_count) * 100, 1) : 0;
-
+      $job = $dao->toArray();
+      $job['api_call'] = $dao->api_entity . '.' . $dao->api_action;
+      $job['next_run'] = $page->predictNextRun($dao);
+      $job['status'] = $this->determineJobStatus($dao->error_count, $dao->execution_count, $dao->is_active);
+      $job['error_rate'] = $errorRate;
+      $jobs[] = $job;
+      /*
       $jobs[] = [
         'id' => $dao->id,
         'name' => $dao->name,
@@ -126,10 +135,13 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
         'error_rate' => $errorRate,
         'status' => $this->determineJobStatus($dao->error_count, $dao->execution_count, $dao->is_active)
       ];
+      */
     }
 
     return $jobs;
   }
+
+
 
   /**
    * Get recent job executions
@@ -145,16 +157,68 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
         jl.command,
         jl.description,
         jl.run_time,
+        jl.run_time_end,
         jl.data,
         j.name as job_name,
         j.api_entity,
         j.api_action
       FROM civicrm_job_log jl
-      LEFT JOIN civicrm_job j ON jl.job_id = j.id
+      INNER JOIN civicrm_job j ON jl.job_id = j.id
+      where j.domain_id = {$this->_domain_id}
       ORDER BY jl.run_time DESC
       LIMIT $limit
     ";
 
+    // Add filters if any
+    $query = "
+    SELECT
+  j.id,
+  j.name,
+  j.description,
+  j.api_entity,
+  j.api_action,
+  j.last_run,
+  j.last_run_end,
+  j.is_active,
+  TIMESTAMPDIFF(SECOND, j.last_run, j.last_run_end) as duration_seconds,
+  CASE
+    -- Never executed
+    WHEN j.last_run IS NULL THEN 'NEVER_RUN'
+
+    -- Currently running (started within last hour, no end time)
+    WHEN j.last_run_end IS NULL AND j.last_run > DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 'RUNNING'
+
+    -- Long running job (started 1-4 hours ago, no end time)
+    WHEN j.last_run_end IS NULL AND j.last_run BETWEEN DATE_SUB(NOW(), INTERVAL 4 HOUR) AND DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 'LONG_RUNNING'
+
+    -- Stuck/Failed (started more than 4 hours ago, no end time)
+    WHEN j.last_run_end IS NULL AND j.last_run < DATE_SUB(NOW(), INTERVAL 4 HOUR) THEN 'STUCK_OR_FAILED'
+
+    -- Completed successfully
+    WHEN j.last_run_end IS NOT NULL AND j.last_run_end >= j.last_run THEN 'COMPLETED'
+
+    -- Data inconsistency (end time before start time)
+    WHEN j.last_run_end IS NOT NULL AND j.last_run_end < j.last_run THEN 'DATA_ERROR'
+
+    ELSE 'UNKNOWN'
+  END as status_code,
+
+  -- Health indicator
+  CASE
+    WHEN j.is_active = 0 THEN 'INACTIVE'
+    WHEN j.last_run IS NULL THEN 'NO_HISTORY'
+    WHEN j.last_run_end IS NULL AND j.last_run > DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 'HEALTHY'
+    WHEN j.last_run_end IS NULL AND j.last_run < DATE_SUB(NOW(), INTERVAL 1 HOUR) THEN 'UNHEALTHY'
+    WHEN j.last_run_end IS NOT NULL AND j.last_run_end >= j.last_run AND j.last_run > DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 'HEALTHY'
+    WHEN j.last_run_end IS NOT NULL AND j.last_run_end >= j.last_run AND j.last_run <= DATE_SUB(NOW(), INTERVAL 24 HOUR) THEN 'STALE'
+    ELSE 'NEEDS_ATTENTION'
+  END as health_status
+
+FROM civicrm_job j
+where j.domain_id = {$this->_domain_id} and j.is_active = 1
+ORDER BY j.last_run DESC
+    LIMIT $limit
+    ";
     $dao = CRM_Core_DAO::executeQuery($query);
     $executions = [];
 
@@ -164,15 +228,14 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
 
       $executions[] = [
         'id' => $dao->id,
-        'job_id' => $dao->job_id,
-        'job_name' => $dao->job_name ?: $dao->name,
+        'job_name' => $dao->name,
         'api_call' => $dao->api_entity . '.' . $dao->api_action,
         'command' => $dao->command,
         'description' => $dao->description,
-        'run_time' => $dao->run_time,
-        'duration' => $duration,
-        'status' => $status,
-        'data' => $dao->data
+        'run_time' => $dao->last_run_end,
+        'duration' => $dao->duration_seconds,
+        'status' => $dao->status_code,
+        'health' => $dao->health_status,
       ];
     }
 
@@ -307,7 +370,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
         'value' => isset($dao->executions) ? $dao->executions :
           (isset($dao->avg_duration) ? round($dao->avg_duration, 2) :
             (isset($dao->errors) ? $dao->errors :
-              (isset($dao->success_rate) ? $dao->success_rate : 0)))
+              (isset($dao->success_rate) ? $dao->success_rate : 0))),
       ];
     }
 
@@ -324,6 +387,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
     if (!empty($tablePrefix)) {
       $tablePrefix = $tablePrefix . '.';
     }
+    $conditions[] = "{$tablePrefix}domain_id = " . $this->_domain_id;
     if (!empty($filters['job_id'])) {
       $jobId = (int)$filters['job_id'];
       $conditions[] = "{$tablePrefix}job_id = $jobId";
@@ -398,7 +462,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
     return [
       'start' => $startDate->format('Y-m-d 00:00:00'),
       'end' => $endDate->format('Y-m-d 23:59:59'),
-      'days' => $days
+      'days' => $days,
     ];
     return $dateRange;
   }
@@ -438,7 +502,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
 
     $data = strtolower($data);
 
-    if (strpos($data, 'error') !== FALSE || strpos($data, 'failed') !== FALSE || strpos($data, 'exception') !== FALSE) {
+    if (strpos($data, 'failed') !== FALSE || strpos($data, 'exception') !== FALSE) {
       return 'error';
     }
     elseif (strpos($data, 'warning') !== FALSE) {
@@ -478,7 +542,7 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
       '30' => ts('Last 30 days'),
       '90' => ts('Last 90 days'),
       '365' => ts('Last year'),
-      'custom' => ts('Custom range')
+      'custom' => ts('Custom range'),
     ];
   }
 
@@ -558,5 +622,102 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
     $executions = $page->getRecentExecutions($limit);
 
     CRM_Utils_JSON::output($executions);
+  }
+
+  /**
+   * @param $executionId
+   * @return array|string[]
+   * @throws CRM_Core_Exception
+   * @throws \Civi\Core\Exception\DBQueryException
+   */
+  public function getExecutionDetails($executionId) {
+    $executionId = CRM_Utils_Request::retrieve('execution_id', 'Integer');
+
+    if (!$executionId) {
+      return ['error' => 'Missing execution ID'];
+    }
+    $query = "
+      SELECT
+        jl.*,
+        j.name as job_name,
+        j.api_entity,
+        j.api_action,
+        j.description as job_description
+      FROM civicrm_job_log jl
+      INNER JOIN civicrm_job j ON jl.job_id = j.id
+      WHERE jl.id = %1 AND domain_id = {$this->_domain_id}
+    ";
+
+    $dao = CRM_Core_DAO::executeQuery($query, [
+      1 => [$executionId, 'Integer']
+    ]);
+
+    if ($dao->fetch()) {
+      $details = [
+        'id' => $dao->id,
+        'job_id' => $dao->job_id,
+        'job_name' => $dao->job_name ?: $dao->name,
+        'api_call' => $dao->api_entity . '.' . $dao->api_action,
+        'command' => $dao->command,
+        'description' => $dao->description,
+        'job_description' => $dao->job_description,
+        'run_time' => $dao->run_time,
+        'data' => $dao->data,
+        'formatted_data' => self::formatJobLogData($dao->data)
+      ];
+
+      return $details;
+    }
+    else {
+      return ['error' => 'Execution not found'];
+    }
+  }
+
+  /**
+   * Format job log data for display
+   */
+  private static function formatJobLogData($data) {
+    if (empty($data)) {
+      return ['message' => 'No data available'];
+    }
+
+    // Try to parse as JSON first
+    $json = json_decode($data, TRUE);
+    if ($json !== NULL) {
+      return $json;
+    }
+
+    // If not JSON, try to extract key information
+    $formatted = [];
+
+    // Look for common patterns
+    if (preg_match('/duration:\s*([0-9.]+)/', $data, $matches)) {
+      $formatted['duration'] = $matches[1] . ' seconds';
+    }
+
+    if (preg_match('/memory:\s*([0-9.]+[KMG]?B?)/', $data, $matches)) {
+      $formatted['memory_usage'] = $matches[1];
+    }
+
+    if (preg_match('/processed:\s*([0-9,]+)/', $data, $matches)) {
+      $formatted['records_processed'] = $matches[1];
+    }
+
+    if (preg_match('/error/i', $data)) {
+      $formatted['status'] = 'error';
+      $formatted['has_errors'] = TRUE;
+    }
+    elseif (preg_match('/warning/i', $data)) {
+      $formatted['status'] = 'warning';
+      $formatted['has_warnings'] = TRUE;
+    }
+    else {
+      $formatted['status'] = 'success';
+    }
+
+    // Add raw data
+    $formatted['raw_data'] = $data;
+
+    return $formatted;
   }
 }

@@ -364,10 +364,15 @@ class CRM_Enhancedjobmanager_Page_Job extends CRM_Admin_Page_Job {
         'run_time' => ['>' => date('Y-m-d H:i:s', strtotime('-24 hours'))],
         'options' => ['limit' => 5, 'sort' => 'run_time DESC'],
       ]);
-
+      if ($logs['count'] == 0) {
+        return FALSE;
+      }
+      $errorStrings = ['failed', 'DB Error', 'unknown error', 'Failure'];
       foreach ($logs['values'] as $log) {
-        if (!empty($log['data']) && stripos($log['data'], 'error') !== FALSE) {
-          return TRUE;
+        foreach ($errorStrings as $errorString) {
+          if (!empty($log['data']) && str_contains($log['data'], $errorString)) {
+            return TRUE;
+          }
         }
       }
     } catch (Exception $e) {
@@ -622,11 +627,10 @@ class CRM_Enhancedjobmanager_Page_Job extends CRM_Admin_Page_Job {
    * @param CRM_Core_ScheduledJob $job
    * @return string|null
    */
-  private function predictNextRun($job) {
+  public function predictNextRun($job) {
     if (!$job->is_active) {
       return NULL;
     }
-
     // Check if run_frequency is a cron expression
     if ($job->crontab_apply && $job->crontab_frequency) {
       try {
@@ -704,7 +708,21 @@ class CRM_Enhancedjobmanager_Page_Job extends CRM_Admin_Page_Job {
   }
 
   protected function cronToHuman($cronExpression) {
-    return CronTranslator::translate($cronExpression);
+    try {
+      $expression = \Sivaschenko\Utility\Cron\ExpressionFactory::getExpression($cronExpression);
+      return $expression->getVerbalString();
+    }
+    catch (\InvalidArgumentException $e) {
+      // Fallback to CronTranslator if ExpressionFactory fails
+      // This is a more user-friendly translation
+      return $cronExpression;
+    }
+    catch (Exception $e) {
+      // If there's an error, return the original expression
+      // This is a fallback to avoid breaking the UI
+      return $cronExpression;
+    }
+    //return CronTranslator::translate($cronExpression);
   }
 
   /**

@@ -1,0 +1,6 @@
+{
+    "require": {
+        "dragonmantank/cron-expression": "^2.3",
+        "sivaschenko/utility-cron": "^1.0"
+    }
+}

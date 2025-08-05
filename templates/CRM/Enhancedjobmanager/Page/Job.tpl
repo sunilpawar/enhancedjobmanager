@@ -19,6 +19,10 @@
         <h1>{ts}Scheduled Jobs{/ts}</h1>
         <div class="jobs-header-actions">
           {if $action ne 1 and $action ne 2}
+            <a href="{crmURL p='civicrm/admin/job/stats' q='reset=1'}" class="crm-modern-button crm-modern-button-secondary">
+              <i class="crm-i fa-bar-chart" aria-hidden="true"></i>
+              {ts}Job Statistics{/ts}
+            </a>
             <a href="{crmURL p='civicrm/admin/joblog' q='reset=1'}" class="crm-modern-button crm-modern-button-secondary">
               <i class="crm-i fa-list-alt" aria-hidden="true"></i>
               {ts}View Logs{/ts}

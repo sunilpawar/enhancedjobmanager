@@ -203,10 +203,6 @@
                      class="crm-button crm-button-small" title="{ts}Edit Job{/ts}">
                     <i class="crm-i fa-edit"></i>
                   </a>
-                  <button type="button" class="crm-button crm-button-small view-job-logs"
-                          data-job-id="{$job.id}" title="{ts}View Logs{/ts}">
-                    <i class="crm-i fa-list"></i>
-                  </button>
                 </div>
               </td>
             </tr>
@@ -239,8 +235,7 @@
             <th>{ts}Status{/ts}</th>
             <th>{ts}Run Time{/ts}</th>
             <th>{ts}Duration{/ts}</th>
-            <th>{ts}Command{/ts}</th>
-            <th>{ts}Details{/ts}</th>
+            <th>{ts}Health{/ts}</th>
           </tr>
           </thead>
           <tbody>
@@ -249,11 +244,13 @@
               <td>{$execution.job_name}</td>
               <td>
                   <span class="crm-status-{$execution.status}">
-                    {if $execution.status == 'success'}
+                    {if $execution.status == 'RUNNING'}
+                      <i class="crm-i fa-check-circle text-success"></i> {ts}Running{/ts}
+                    {elseif $execution.status == 'COMPLETED'}
                       <i class="crm-i fa-check-circle text-success"></i> {ts}Success{/ts}
-                    {elseif $execution.status == 'warning'}
+                    {elseif $execution.status == 'LONG_RUNNING' OR $execution.status == 'STUCK_OR_FAILED' OR $execution.status == 'NEVER_RUN'}
                       <i class="crm-i fa-exclamation-triangle text-warning"></i> {ts}Warning{/ts}
-                    {elseif $execution.status == 'error'}
+                    {elseif $execution.status == 'DATA_ERROR'}
                       <i class="crm-i fa-times-circle text-danger"></i> {ts}Error{/ts}
                     {else}
                       <i class="crm-i fa-question-circle text-muted"></i> {ts}Unknown{/ts}
@@ -269,17 +266,9 @@
                 {/if}
               </td>
               <td>
-                {if $execution.command}
-                  <code class="small">{$execution.command|truncate:50}</code>
-                {else}
-                  <code class="small">{$execution.api_call}</code>
+                {if $execution.health}
+                  <em class="small">{$execution.health}</em>
                 {/if}
-              </td>
-              <td>
-                <button type="button" class="crm-button crm-button-small view-execution-details"
-                        data-execution-id="{$execution.id}" title="{ts}View Details{/ts}">
-                  <i class="crm-i fa-eye"></i>
-                </button>
               </td>
             </tr>
           {/foreach}
@@ -432,8 +421,8 @@
             pageLength: 50,
             order: [[2, 'desc']], // Order by run time desc
             columnDefs: [
-              { targets: [3, 5], className: 'text-center' },
-              { targets: [5], orderable: false }
+              { targets: [3], className: 'text-center' },
+              { targets: [4], orderable: false }
             ]
           });
         },
@@ -510,7 +499,7 @@
                 }
 
                 var lastRun = job.last_run ? new Date(job.last_run).toLocaleString() : 'Never';
-                var nextRun = job.next_run ? new Date(job.next_run).toLocaleString() : 'Not scheduled';
+                var nextRun = job.next_run ? job.next_run : 'Not scheduled';
 
                 table.row.add([
                   '<strong>' + job.name + '</strong>' + (job.description ? '<br><small>' + job.description.substring(0, 100) + '</small>' : ''),
@@ -520,7 +509,7 @@
                   nextRun,
                   job.execution_count || 0,
                   '<span class="error-rate ' + (job.error_rate > 10 ? 'high-error' : job.error_rate > 5 ? 'medium-error' : 'low-error') + '">' + job.error_rate + '%</span>',
-                  '<button type="button" class="crm-button crm-button-small view-job-logs" data-job-id="' + job.id + '"><i class="crm-i fa-list"></i></button>'
+                  '<div class="crm-submit-buttons"><a href="'+ CRM.url('civicrm/admin/job', {action: 'update', id: job.id, reset: 1}) + '"class="crm-button crm-button-small" title="{ts}Edit Job{/ts}"> <i class="crm-i fa-edit"></i></a> </div>'
                 ]);
               });
             }
@@ -542,13 +531,18 @@
               result.values.forEach(function(execution) {
                 var statusIcon = '';
                 switch(execution.status) {
-                  case 'success':
+                  case 'COMPLETED':
                     statusIcon = '<i class="crm-i fa-check-circle text-success"></i> Success';
                     break;
-                  case 'warning':
+                  case 'RUNNING':
+                    statusIcon = '<i class="crm-i fa-check-circle text-success"></i> Running';
+                    break;
+                  case 'LONG_RUNNING':
+                  case 'STUCK_OR_FAILED':
+                  case 'NEVER_RUN':
                     statusIcon = '<i class="crm-i fa-exclamation-triangle text-warning"></i> Warning';
                     break;
-                  case 'error':
+                  case 'DATA_ERROR':
                     statusIcon = '<i class="crm-i fa-times-circle text-danger"></i> Error';
                     break;
                   default:
@@ -557,15 +551,14 @@
 
                 var runTime = new Date(execution.run_time).toLocaleString();
                 var duration = execution.duration ? execution.duration + 's' : 'N/A';
-                var command = execution.command ? execution.command.substring(0, 50) : execution.api_call;
+                var health = execution.health ? execution.health : 'N/A';
 
                 table.row.add([
                   execution.job_name,
                   statusIcon,
                   runTime,
                   duration,
-                  '<code class="small">' + command + '</code>',
-                  '<button type="button" class="crm-button crm-button-small view-execution-details" data-execution-id="' + execution.id + '"><i class="crm-i fa-eye"></i></button>'
+                  '<em class="small">' + health + '</em>'
                 ]);
               });
             }
