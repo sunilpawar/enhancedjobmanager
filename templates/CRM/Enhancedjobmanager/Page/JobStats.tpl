@@ -10,7 +10,12 @@
       {ts}Monitor and analyze your CiviCRM scheduled jobs performance{/ts}
     </p>
   </div>
-
+  <div>
+  <a href="{crmURL p='civicrm/admin/job' q='reset=1'}" class="crm-modern-button crm-modern-button-primary">
+    <i class="crm-i fa-list-alt" aria-hidden="true"></i>
+    {ts}Back to Job Listing{/ts}
+  </a>
+  </div>
   {* Control Panel *}
   <div class="job-stats-controls">
     <div class="crm-section">
