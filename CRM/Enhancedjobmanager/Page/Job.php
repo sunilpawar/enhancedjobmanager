@@ -736,7 +736,7 @@ class CRM_Enhancedjobmanager_Page_Job extends CRM_Admin_Page_Job {
    */
   private function getJobs(): array {
     $jobs = [];
-    $class = class_exists('CRM_Core_ScheduledJob') ? 'CRM_Crontab_ScheduledJob' : 'CRM_Core_ScheduledJob';
+    $class = class_exists('CRM_Crontab_ScheduledJob') ? 'CRM_Crontab_ScheduledJob' : 'CRM_Core_ScheduledJob';
     $jobList = Civi\Api4\Job::get(FALSE)
       ->addWhere('domain_id', '=', CRM_Core_Config::domainID())
       ->addOrderBy('name', 'ASC')
