@@ -8,7 +8,7 @@
   </item>
   <item>
     <path>civicrm/admin/job/enhanced</path>
-    <page_callback>CRM_Enhancedjobmanager_Page_EnhancedJobManager</page_callback>
+    <page_callback>CRM_Enhancedjobmanager_Page_Job</page_callback>
     <title>Enhanced Job Manager</title>
     <access_arguments>administer CiviCRM</access_arguments>
     <page_type>1</page_type>
