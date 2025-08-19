@@ -484,7 +484,7 @@ class CRM_Enhancedjobmanager_Page_Job extends CRM_Admin_Page_Job {
 
       $jobData['last_run_duration'] = $this->runDuration($job);
 
-      if ($job->crontab_apply && $job->crontab_frequency) {
+      if (property_exists($job, 'crontab_apply') && $job->crontab_apply && $job->crontab_frequency) {
         $jobData['run_frequency'] = $this->cronToHuman($job->crontab_frequency);
         if ($job->crontab_date_time_start) {
           $jobData['crontab_date_time_start'] = CRM_Utils_Date::customFormat($job->crontab_date_time_start);
@@ -632,7 +632,7 @@ class CRM_Enhancedjobmanager_Page_Job extends CRM_Admin_Page_Job {
       return NULL;
     }
     // Check if run_frequency is a cron expression
-    if ($job->crontab_apply && $job->crontab_frequency) {
+    if (property_exists($job, 'crontab_apply') && $job->crontab_apply && $job->crontab_frequency) {
       try {
         $cron = Cron\CronExpression::factory($job->crontab_frequency);
         $fromTime = $job->last_run ? new DateTime($job->last_run) : new DateTime();
@@ -737,6 +737,14 @@ class CRM_Enhancedjobmanager_Page_Job extends CRM_Admin_Page_Job {
   private function getJobs(): array {
     $jobs = [];
     $class = class_exists('CRM_Crontab_ScheduledJob') ? 'CRM_Crontab_ScheduledJob' : 'CRM_Core_ScheduledJob';
+    if ($class == 'CRM_Core_ScheduledJob') {
+      $obj = new $class([]);
+      // To avoid php deprecation warning check property exist.
+      if (!property_exists($obj, 'last_run_end')) {
+        $class = 'CRM_Enhancedjobmanager_ScheduledJob';
+      }
+    }
+
     $jobList = Civi\Api4\Job::get(FALSE)
       ->addWhere('domain_id', '=', CRM_Core_Config::domainID())
       ->addOrderBy('name', 'ASC')

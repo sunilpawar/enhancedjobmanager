@@ -75,7 +75,6 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
     )
     WHERE (start_log.description LIKE 'Starting execution%')
       AND (finish_log.description LIKE '%Finished execution%')
-      -- AND start_log.run_time >= DATE_SUB(NOW(), INTERVAL $days DAY)
       AND TIMESTAMPDIFF(SECOND, start_log.run_time, finish_log.run_time) BETWEEN 1 AND 86400
       $whereClause
   ");
@@ -149,26 +148,6 @@ class CRM_Enhancedjobmanager_Page_JobStats extends CRM_Core_Page {
    * @return array
    */
   public function getRecentExecutions($limit = 50) {
-    $query = "
-      SELECT
-        jl.id,
-        jl.job_id,
-        jl.name,
-        jl.command,
-        jl.description,
-        jl.run_time,
-        jl.run_time_end,
-        jl.data,
-        j.name as job_name,
-        j.api_entity,
-        j.api_action
-      FROM civicrm_job_log jl
-      INNER JOIN civicrm_job j ON jl.job_id = j.id
-      where j.domain_id = {$this->_domain_id}
-      ORDER BY jl.run_time DESC
-      LIMIT $limit
-    ";
-
     // Add filters if any
     $query = "
     SELECT
@@ -223,14 +202,10 @@ ORDER BY j.last_run DESC
     $executions = [];
 
     while ($dao->fetch()) {
-      $duration = $this->extractDurationFromData($dao->data);
-      $status = $this->determineExecutionStatus($dao->data);
-
       $executions[] = [
         'id' => $dao->id,
         'job_name' => $dao->name,
         'api_call' => $dao->api_entity . '.' . $dao->api_action,
-        'command' => $dao->command,
         'description' => $dao->description,
         'run_time' => $dao->last_run_end,
         'duration' => $dao->duration_seconds,
@@ -443,7 +418,7 @@ ORDER BY j.last_run DESC
    * @return array|null Array with 'start' and 'end' dates or null
    */
   private function getDateRange($params = []) {
-    $days = (int)$params['days'];
+    $days = $params['days'] ?? 0;
 
     // Validate days input
     if ($days <= 0) {
